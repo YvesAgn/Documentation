@@ -1,0 +1,29 @@
+services:
+
+  # ── Backend (Node.js + SQLite) ───────────────────────────────────────────────
+  backend:
+    build: ./backend
+    restart: always
+    ports:
+      - "44174:3001"          # direct API access (optional)
+    environment:
+      - PORT=3001
+      - CLIENT_URL=http://159.195.34.237:44215
+      - DB_PATH=/data/kanban.db
+    volumes:
+      - kanban_data:/data      # SQLite database
+      - kanban_uploads:/app/uploads  # uploaded files
+
+  # ── Frontend (React → nginx) ─────────────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    restart: always
+    ports:
+      - "44215:80"            # public entry point
+    depends_on:
+      - backend
+
+# Named volumes persist data across rebuilds / restarts
+volumes:
+  kanban_data:
+  kanban_uploads:
