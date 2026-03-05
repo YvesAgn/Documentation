@@ -94,21 +94,35 @@ async function parsePdf(filePath) {
   return blocksToLeads(data.text);
 }
 
-function parseExcel(filePath) {
-  const XLSX = require('xlsx');
-  const workbook = XLSX.readFile(filePath);
+async function parseExcel(filePath) {
+  const ExcelJS = require('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  const ext = path.extname(filePath).toLowerCase();
   const leads = [];
 
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+  if (ext === '.csv') {
+    await workbook.csv.readFile(filePath);
+  } else {
+    await workbook.xlsx.readFile(filePath);
+  }
 
-    for (const row of rows) {
-      // Normalise column names to lowercase without spaces/underscores
-      const norm = {};
-      for (const [k, v] of Object.entries(row)) {
-        norm[k.toLowerCase().replace(/[\s_\-]+/g, '')] = String(v).trim();
+  workbook.eachSheet((sheet) => {
+    const headers = [];
+    sheet.eachRow((row, rowNum) => {
+      if (rowNum === 1) {
+        // Collect headers from first row
+        row.eachCell((cell, colNum) => {
+          headers[colNum] = String(cell.value || '').toLowerCase().replace(/[\s_\-]+/g, '');
+        });
+        return;
       }
+
+      const norm = {};
+      row.eachCell((cell, colNum) => {
+        if (headers[colNum]) {
+          norm[headers[colNum]] = String(cell.value ?? '').trim();
+        }
+      });
 
       const company_name =
         norm['firmenname'] ||
@@ -118,12 +132,12 @@ function parseExcel(filePath) {
         norm['name'] ||
         '';
 
-      if (!company_name) continue;
+      if (!company_name) return;
 
       leads.push({
         company_name,
         website: norm['webseite'] || norm['website'] || norm['url'] || norm['homepage'] || '',
-        email: (norm['email'] || norm['mail'] || norm['emailadresse'] || norm['e-mail'] || '').toLowerCase(),
+        email: (norm['email'] || norm['mail'] || norm['emailadresse'] || norm['email'] || '').toLowerCase(),
         phone:
           norm['telefon'] ||
           norm['phone'] ||
@@ -133,8 +147,8 @@ function parseExcel(filePath) {
           norm['mobil'] ||
           '',
       });
-    }
-  }
+    });
+  });
 
   return leads;
 }
@@ -153,7 +167,7 @@ router.post('/', upload.single('file'), async (req, res) => {
     if (ext === '.pdf') {
       rawLeads = await parsePdf(filePath);
     } else if (['.xlsx', '.xls', '.csv'].includes(ext)) {
-      rawLeads = parseExcel(filePath);
+      rawLeads = await parseExcel(filePath);
     } else {
       return res.status(400).json({ error: 'Unsupported file type' });
     }

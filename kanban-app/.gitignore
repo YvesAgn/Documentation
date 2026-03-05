@@ -4,6 +4,8 @@ frontend/node_modules/
 backend/uploads/*
 !backend/uploads/.gitkeep
 backend/kanban.db
+backend/kanban.db-shm
+backend/kanban.db-wal
 frontend/build/
 .env
 *.log
